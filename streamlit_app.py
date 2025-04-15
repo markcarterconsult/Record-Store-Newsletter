@@ -1,5 +1,5 @@
 import streamlit as st
-import openai
+from openai import OpenAI
 import requests
 from bs4 import BeautifulSoup
 import re
@@ -8,7 +8,7 @@ import re
 st.set_page_config(page_title="Collector's Corner Newsletter Builder", layout="centered")
 st.title("📰 Monthly Collector’s Corner Newsletter Generator")
 
-openai.api_key = st.secrets["OPENAI_API_KEY"]  # Add this in Streamlit > Settings > Secrets
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # ---------- SCRAPER FUNCTION ----------
 def scrape_website_content(url):
@@ -34,7 +34,7 @@ def scrape_website_content(url):
     except Exception as e:
         return f"Error scraping: {e}"
 
-# ---------- GPT-4 GENERATION FUNCTION ----------
+# ---------- GPT GENERATION ----------
 def generate_newsletter_from_content(raw_text, month):
     prompt = f"""
 You are writing a vinyl collector newsletter called "Collector’s Corner — {month} Edition" for Music Record Shop.
@@ -58,14 +58,15 @@ Format your response exactly like this:
 Here is the raw content to summarize:
 {raw_text}
 """
-    response = openai.ChatCompletion.create(
+
+    response = client.chat.completions.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7
     )
     return response.choices[0].message.content
 
-# ---------- EXTRACT MARKDOWN SECTIONS ----------
+# ---------- SECTION PARSER ----------
 def extract_markdown_section(text, header):
     pattern = rf"## {re.escape(header)}\n(.*?)(?=\n## |\Z)"
     match = re.search(pattern, text, re.DOTALL)
@@ -85,7 +86,6 @@ if st.button("🧠 Generate Newsletter from URL or Text"):
 
         raw_text = ""
 
-        # Priority: Use manual text if provided
         if manual_text.strip():
             raw_text = manual_text.strip()
         elif url:
