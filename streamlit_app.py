@@ -7,60 +7,74 @@ from bs4 import BeautifulSoup
 st.set_page_config(page_title="Collector's Corner Newsletter Builder", layout="centered")
 st.title("📰 Monthly Collector’s Corner Newsletter Generator")
 
-openai.api_key = st.secrets["OPENAI_API_KEY"]  # Add your OpenAI key in Streamlit secrets
+openai.api_key = st.secrets["OPENAI_API_KEY"]  # Add this in Streamlit Cloud > Settings > Secrets
 
-# ---------- SCRAPE FUNCTION ----------
+# ---------- SCRAPER FUNCTION ----------
 def scrape_website_content(url):
     try:
-        r = requests.get(url, timeout=5)
+        r = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
         soup = BeautifulSoup(r.text, 'html.parser')
-        paragraphs = soup.find_all(['p', 'h1', 'h2', 'li'])
-        content = '\n'.join([p.get_text() for p in paragraphs])
-        return content[:3000]  # Limit for token safety
+
+        # Try grabbing Shopify-style product title + description
+        title = soup.find('h1')
+        description = soup.find('div', class_='product-single__description')
+
+        all_paragraphs = soup.find_all('p')
+        paragraphs = "\n".join(p.get_text() for p in all_paragraphs)
+
+        combined = ""
+
+        if title:
+            combined += f"Title: {title.get_text()}\n"
+        if description:
+            combined += f"Description: {description.get_text()}\n"
+
+        combined += f"\nExtra Paragraphs:\n{paragraphs}"
+
+        return combined[:3500]
     except Exception as e:
         return f"Error scraping: {e}"
 
-# ---------- AI GENERATION FUNCTION ----------
+# ---------- AI GENERATION ----------
 def generate_newsletter_from_content(raw_text, month):
     prompt = f"""
-You are writing a vinyl collector newsletter called "Collector’s Corner — {month} Edition" based on this scraped content:
+You are writing a vinyl collector newsletter titled "Collector’s Corner — {month} Edition" for Music Record Shop.
 
+Summarize the following page content into these sections:
+1. 🎯 Featured Pressing (1–2 sentences explaining what makes it collectible)
+2. 📈 Valuation Tip (a collector trick or matrix to look for)
+3. 🆕 Just In (list 2–3 cool records mentioned or implied)
+4. 🗞️ Collector Buzz (industry or vinyl trend-related wrap-up)
+
+Web Page Content:
 {raw_text}
-
-Create the following sections (1–3 sentences each):
-🎯 Featured Pressing
-📈 Valuation Tip
-🆕 Just In (3 items)
-🗞️ Industry News
 """
-
     response = openai.ChatCompletion.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7
     )
-
     return response.choices[0].message.content
 
-# ---------- FORM FIELDS ----------
+# ---------- FORM UI ----------
 month = st.selectbox("Edition Month", [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
 ])
 
-# -------- URL INPUT + GENERATE --------
-url = st.text_input("🔗 Paste a blog post, product page, or article URL to pull content from")
+# URL for scraping
+url = st.text_input("🔗 Paste a product/blog page URL to generate newsletter from")
 
 if st.button("🧠 Generate from URL"):
-    with st.spinner("Scraping and generating..."):
+    with st.spinner("Scraping and summarizing..."):
         raw_text = scrape_website_content(url)
         if "Error scraping" in raw_text:
             st.error(raw_text)
         else:
             ai_output = generate_newsletter_from_content(raw_text, month)
 
-            # Auto-fill the fields
-            sections = ai_output.split("\n\n")
+            # Split and assign sections to session state
+            sections = ai_output.split("\n")
             for sec in sections:
                 if "🎯" in sec:
                     st.session_state["featured_pressing"] = sec.split("🎯 Featured Pressing")[-1].strip()
@@ -69,18 +83,18 @@ if st.button("🧠 Generate from URL"):
                 elif "🆕" in sec:
                     st.session_state["just_in"] = sec.split("🆕 Just In")[-1].strip()
                 elif "🗞️" in sec:
-                    st.session_state["industry_news"] = sec.split("🗞️ Industry News")[-1].strip()
-            st.success("Fields generated! You can now edit them below.")
+                    st.session_state["industry_news"] = sec.split("🗞️ Collector Buzz")[-1].strip()
+            st.success("Newsletter sections generated below!")
 
-# ---------- MAIN FORM ----------
+# Editable form fields
 featured_pressing = st.text_area("🎯 Featured Pressing", value=st.session_state.get("featured_pressing", ""))
 valuation_tip = st.text_area("📈 Valuation Tip", value=st.session_state.get("valuation_tip", ""))
 just_in = st.text_area("🆕 Just In (New Arrivals)", value=st.session_state.get("just_in", ""))
-industry_news = st.text_area("🗞️ Industry Buzz + Collector News", value=st.session_state.get("industry_news", ""))
+industry_news = st.text_area("🗞️ Collector News + Industry Buzz", value=st.session_state.get("industry_news", ""))
 spotlight = st.text_area("💬 Collector Spotlight (Optional)")
 cta = st.text_input("📢 Call to Action (Optional)", placeholder="Link to Pressing Value Tool or Trade-In App")
 
-# ---------- PREVIEW OUTPUT ----------
+# Newsletter Preview
 if st.button("🧠 Generate Newsletter Preview"):
     st.markdown("---")
     st.markdown(f"## 📰 Collector’s Corner — {month} Edition")
@@ -99,5 +113,6 @@ if st.button("🧠 Generate Newsletter Preview"):
     if cta:
         st.markdown("### 📢 Want to Sell or Trade Records?")
         st.markdown(f"{cta}")
+
 
 
