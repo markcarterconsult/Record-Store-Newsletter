@@ -8,7 +8,7 @@ import re
 st.set_page_config(page_title="Collector's Corner Newsletter Builder", layout="centered")
 st.title("📰 Monthly Collector’s Corner Newsletter Generator")
 
-openai.api_key = st.secrets["OPENAI_API_KEY"]  # Add your OpenAI API key in Streamlit > Settings > Secrets
+openai.api_key = st.secrets["OPENAI_API_KEY"]  # Add this in Streamlit > Settings > Secrets
 
 # ---------- SCRAPER FUNCTION ----------
 def scrape_website_content(url):
@@ -30,22 +30,22 @@ def scrape_website_content(url):
 
         combined += f"\nExtra Paragraphs:\n{paragraphs}"
 
-        return combined[:3500]  # token safety
+        return combined[:3500]
     except Exception as e:
         return f"Error scraping: {e}"
 
 # ---------- GPT-4 GENERATION FUNCTION ----------
 def generate_newsletter_from_content(raw_text, month):
     prompt = f"""
-You are a vinyl collector and newsletter editor writing the "Collector’s Corner — {month} Edition" for Music Record Shop.
+You are writing a vinyl collector newsletter called "Collector’s Corner — {month} Edition" for Music Record Shop.
 
-Based on the content below, generate these four sections using this exact markdown format:
----
+Format your response exactly like this:
+
 ## 🎯 Featured Pressing
-[Summary of the main collectible item]
+[One-paragraph summary]
 
 ## 📈 Valuation Tip
-[A tip for collectors related to runouts, variants, or matrix info]
+[One-paragraph collector insight]
 
 ## 🆕 Just In
 - [Item 1]
@@ -53,13 +53,11 @@ Based on the content below, generate these four sections using this exact markdo
 - [Item 3]
 
 ## 🗞️ Collector Buzz
-[Industry news, trends, reissues, or insights]
----
+[Industry trend, release news, or collector tip]
 
-Avoid including URLs or links. Keep it in clean text. Here is the source content:
-
+Here is the raw content to summarize:
 {raw_text}
-    """
+"""
     response = openai.ChatCompletion.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}],
@@ -67,29 +65,37 @@ Avoid including URLs or links. Keep it in clean text. Here is the source content
     )
     return response.choices[0].message.content
 
-# ---------- SECTION PARSER ----------
+# ---------- EXTRACT MARKDOWN SECTIONS ----------
 def extract_markdown_section(text, header):
     pattern = rf"## {re.escape(header)}\n(.*?)(?=\n## |\Z)"
     match = re.search(pattern, text, re.DOTALL)
     return match.group(1).strip() if match else ""
 
-# ---------- STREAMLIT UI ----------
+# ---------- STREAMLIT FORM ----------
 month = st.selectbox("Edition Month", [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
 ])
 
-url = st.text_input("🔗 Paste a product or blog URL")
+url = st.text_input("🔗 Option A: Paste a product/blog URL to scrape")
+manual_text = st.text_area("📝 Option B: Or paste the product description / content manually")
 
-if st.button("🧠 Generate from URL"):
-    with st.spinner("Scraping and summarizing..."):
-        raw_text = scrape_website_content(url)
-        if "Error scraping" in raw_text:
-            st.error(raw_text)
+if st.button("🧠 Generate Newsletter from URL or Text"):
+    with st.spinner("Working..."):
+
+        raw_text = ""
+
+        # Priority: Use manual text if provided
+        if manual_text.strip():
+            raw_text = manual_text.strip()
+        elif url:
+            raw_text = scrape_website_content(url)
+
+        if not raw_text or "Error scraping" in raw_text:
+            st.error("Could not find useful content. Try pasting text manually.")
         else:
             ai_output = generate_newsletter_from_content(raw_text, month)
 
-            # Extract sections using markdown headers
             st.session_state["featured_pressing"] = extract_markdown_section(ai_output, "🎯 Featured Pressing")
             st.session_state["valuation_tip"] = extract_markdown_section(ai_output, "📈 Valuation Tip")
             st.session_state["just_in"] = extract_markdown_section(ai_output, "🆕 Just In")
@@ -124,3 +130,4 @@ if st.button("🧠 Generate Newsletter Preview"):
     if cta:
         st.markdown("### 📢 Want to Sell or Trade Records?")
         st.markdown(f"{cta}")
+
