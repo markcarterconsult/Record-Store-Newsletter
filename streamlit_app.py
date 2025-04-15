@@ -71,20 +71,27 @@ if st.button("🧠 Generate from URL"):
         if "Error scraping" in raw_text:
             st.error(raw_text)
         else:
-            ai_output = generate_newsletter_from_content(raw_text, month)
+           def generate_newsletter_from_content(raw_text, month):
+    prompt = f"""
+You are a vinyl collector and newsletter editor creating the "Collector’s Corner — {month} Edition".
 
-            # Split and assign sections to session state
-            sections = ai_output.split("\n")
-            for sec in sections:
-                if "🎯" in sec:
-                    st.session_state["featured_pressing"] = sec.split("🎯 Featured Pressing")[-1].strip()
-                elif "📈" in sec:
-                    st.session_state["valuation_tip"] = sec.split("📈 Valuation Tip")[-1].strip()
-                elif "🆕" in sec:
-                    st.session_state["just_in"] = sec.split("🆕 Just In")[-1].strip()
-                elif "🗞️" in sec:
-                    st.session_state["industry_news"] = sec.split("🗞️ Collector Buzz")[-1].strip()
-            st.success("Newsletter sections generated below!")
+Summarize this content from a product/blog page into the following **exact format**, using 1–3 sentences per section:
+
+🎯 Featured Pressing: ...
+📈 Valuation Tip: ...
+🆕 Just In: ...
+🗞️ Collector Buzz: ...
+
+Content to summarize:
+{raw_text}
+    """
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.7
+    )
+    return response.choices[0].message.content
+
 
 # Editable form fields
 featured_pressing = st.text_area("🎯 Featured Pressing", value=st.session_state.get("featured_pressing", ""))
