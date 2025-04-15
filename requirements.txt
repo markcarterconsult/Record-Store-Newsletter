@@ -1,37 +1,4 @@
-from openai import OpenAI
-
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-
-def generate_newsletter_from_content(raw_text, month):
-    prompt = f"""
-You are writing a vinyl collector newsletter called "Collector’s Corner — {month} Edition" for Music Record Shop.
-
-Format your response exactly like this:
-
-## 🎯 Featured Pressing
-[One-paragraph summary]
-
-## 📈 Valuation Tip
-[One-paragraph collector insight]
-
-## 🆕 Just In
-- [Item 1]
-- [Item 2]
-- [Item 3]
-
-## 🗞️ Collector Buzz
-[Industry trend, release news, or collector tip]
-
-Here is the raw content to summarize:
-{raw_text}
-"""
-
-    response = client.chat.completions.create(
-        model="gpt-4",
-        messages=[
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.7
-    )
-    
-    return response.choices[0].message.content
+streamlit
+openai>=1.2.0
+requests
+beautifulsoup4
