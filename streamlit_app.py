@@ -6,17 +6,14 @@ import re
 st.set_page_config(page_title="Collector's Corner Newsletter Builder", layout="centered")
 st.title("📰 Collector’s Corner Newsletter Generator")
 
-# 🔐 OpenAI Setup
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # ---------- GPT GENERATION ----------
 def generate_newsletter(raw_input, month):
     prompt = f"""
-You are creating a vinyl collector newsletter titled "Collector’s Corner — {month} Edition" for Music Record Shop.
+You're helping create a collector newsletter called "Collector’s Corner — {month} Edition" for Music Record Shop.
 
-Use the messy ideas below and turn them into a clean, structured, collector-savvy newsletter.
-
-Format exactly like this:
+Turn the rough ideas below into clean newsletter sections using this exact format:
 
 ## 🎯 Featured Pressing
 [Polished description]
@@ -30,11 +27,11 @@ Format exactly like this:
 - [Record 3]
 
 ## 🗞️ Collector Buzz
-[Industry news, trend, or fun fact]
+[Industry news, RSD info, or fun fact]
 
-Here are the notes to work from:
+Input Notes:
 {raw_input}
-"""
+    """
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}],
@@ -42,33 +39,50 @@ Here are the notes to work from:
     )
     return response.choices[0].message.content
 
-# ---------- SECTION PARSER ----------
+# ---------- EXTRACT SECTIONS ----------
 def extract_section(text, header):
     pattern = rf"## {re.escape(header)}\n(.*?)(?=\n## |\Z)"
     match = re.search(pattern, text, re.DOTALL)
     return match.group(1).strip() if match else ""
 
-# ---------- UI FORM ----------
-month = st.selectbox("📅 Select Newsletter Month", [
+# ---------- UI ----------
+month = st.selectbox("📅 Select Month", [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
 ])
 
-user_notes = st.text_area("📝 Paste Your Rough Newsletter Notes Here", height=250, placeholder="""
-- Bowie Ziggy Stardust UK 1st Press just arrived
-- Tip: check matrix ‘BGBS 0864-2E’ for authentic glam press
-- RSD hype: Smashing Pumpkins reissues + live sets
-- Pearl Jam bootlegs trending on Discogs
+user_notes = st.text_area("📝 Paste Rough Notes Here", height=250, placeholder="""
+- Ziggy Stardust UK 1st press just arrived
+- Tip: look for matrix ‘BGBS 0864-2E’
+- RSD: Smashing Pumpkins reissue + live set
+- Discogs trending: Pearl Jam bootlegs
 """)
 
 if st.button("🧠 Generate Newsletter"):
-    with st.spinner("Creating your Collector’s Corner..."):
-        newsletter_md = generate_newsletter(user_notes, month)
-        st.session_state["newsletter_text"] = newsletter_md
+    with st.spinner("Building your Collector’s Corner..."):
+        output = generate_newsletter(user_notes, month)
+        st.session_state["full_newsletter"] = output
+        st.session_state["featured"] = extract_section(output, "🎯 Featured Pressing")
+        st.session_state["tip"] = extract_section(output, "📈 Valuation Tip")
+        st.session_state["just_in"] = extract_section(output, "🆕 Just In")
+        st.session_state["buzz"] = extract_section(output, "🗞️ Collector Buzz")
 
-# ---------- PREVIEW ----------
-if "newsletter_text" in st.session_state:
+# ---------- OUTPUT ----------
+if "full_newsletter" in st.session_state:
+    st.markdown("### 🎯 Featured Pressing")
+    st.text_area("Copy this", value=st.session_state["featured"], height=100)
+
+    st.markdown("### 📈 Valuation Tip")
+    st.text_area("Copy this", value=st.session_state["tip"], height=100)
+
+    st.markdown("### 🆕 Just In")
+    st.text_area("Copy this", value=st.session_state["just_in"], height=100)
+
+    st.markdown("### 🗞️ Collector Buzz")
+    st.text_area("Copy this", value=st.session_state["buzz"], height=120)
+
     st.markdown("---")
-    st.markdown(f"## 📬 Preview: Collector’s Corner — {month} Edition")
-    st.markdown(st.session_state["newsletter_text"])
+    st.markdown("### 📰 Full Newsletter Preview")
+    st.markdown(st.session_state["full_newsletter"])
+
 
